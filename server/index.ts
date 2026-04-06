@@ -45,6 +45,7 @@ const allowedOrigins = [
   process.env.CLIENT_URL,
   "http://localhost:5173",
   "http://localhost:3000",
+  "https://single-w5j.onrender.com", // ← add this
 ].filter(Boolean) as string[];
 
 app.use(cors({
