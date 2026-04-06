@@ -154,7 +154,7 @@ const LoginPage: React.FC = () => {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              className="w-full px-4 py-3 rounded-xl border border-neutral-200 text-neutral-900 bg-white placeholder:text-neutral-400 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
               placeholder="admin@theobsidian.com"
             />
           </div>
@@ -163,12 +163,13 @@ const LoginPage: React.FC = () => {
             <label className="text-sm font-medium text-neutral-700 flex items-center gap-2">
               <Lock size={16} /> Password
             </label>
+
             <input
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+              className="w-full px-4 py-3 rounded-xl border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
               placeholder="••••••••"
             />
           </div>
