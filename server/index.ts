@@ -29,7 +29,9 @@ export const catchAsync = (fn: Function) => (req: Request, res: Response, next: 
 app.set("trust proxy", 1);
 
 // 2. Security Headers
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false, // Required for React SPA
+}));
 
 // 3. Performance: Response Compression
 app.use(compression());
@@ -37,7 +39,7 @@ app.use(compression());
 // 4. Request Logging
 app.use(morgan("combined"));
 
-// 4. CORS Configuration
+// 5. CORS Configuration
 const allowedOrigins = [
   process.env.CLIENT_URL,
   "http://localhost:5173",
@@ -59,12 +61,11 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
-// 5. Body Parsing
-app.use(express.json({ limit: "10kb" })); // Limit body size for security
+// 6. Body Parsing
+app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 
-// 6. Timeout Protection (30 seconds)
-// ✅ Fix: Check headersSent to prevent duplicate responses or crashes
+// 7. Timeout Protection (30 seconds)
 app.use((req: Request, res: Response, next: NextFunction) => {
   const timeout = 30000;
   const timer = setTimeout(() => {
@@ -78,18 +79,17 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// 7. Rate Limiting
+// 8. Rate Limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per window
+  max: 100,
   message: { error: "Too many requests, please try again later." },
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use("/api/", limiter);
 
-// 8. Health Check Route
-// ⚠️ Improvement: Added uptime and timestamp
+// 9. Health Check Route
 app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({
     status: "ok",
@@ -99,43 +99,55 @@ app.get("/health", (req: Request, res: Response) => {
   });
 });
 
-// --- API Routes ---
+// 10. API Routes
 import { brochureRouter } from "./routes/brochure.routes.js";
 app.use("/api/brochure", brochureRouter);
 
-// 9. Global 404 Handler
+// 11. Serve React Frontend (Production only)
+if (process.env.NODE_ENV === "production") {
+  const distPath = path.resolve(__dirname, "../../dist"); // two levels up from dist-server/server/
+
+  // Serve static assets (JS, CSS, images, etc.)
+  app.use(express.static(distPath));
+
+  // SPA fallback — serve index.html for all non-API routes
+  app.get("*", (req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith("/api")) return next();
+    res.sendFile(path.join(distPath, "index.html"));
+  });
+}
+
+// 12. Global 404 Handler
 app.use((req: Request, res: Response) => {
   if (!res.headersSent) {
     res.status(404).json({ error: "Route not found" });
   }
 });
 
-// 10. Global Error Handling Middleware
-// ✅ Fix: Consistent JSON response and no stack leak in production
+// 13. Global Error Handling Middleware
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   if (res.headersSent) {
     return next(err);
   }
 
   console.error("Unhandled Error:", err);
-  
+
   const statusCode = err.statusCode || 500;
   const message = err.message || "Internal Server Error";
-  
+
   res.status(statusCode).json({
     error: message,
-    ...(process.env.NODE_ENV !== "production" && { stack: err.stack })
+    ...(process.env.NODE_ENV !== "production" && { stack: err.stack }),
   });
 });
 
-// Start Server
+// 14. Start Server
 const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Production-ready server running on port ${PORT}`);
   console.log(`🔗 Allowed Origins: ${allowedOrigins.join(", ")}`);
 });
 
-// 11. Graceful Shutdown & Error Handling
-// ✅ Fix: Prevent silent crashes and handle hanging connections
+// 15. Graceful Shutdown & Error Handling
 process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);
 });
@@ -149,15 +161,14 @@ import { BrowserManager } from "./services/brochure.service.js";
 
 process.on("SIGTERM", () => {
   console.log("SIGTERM received. Shutting down gracefully...");
-  
-  // Close Puppeteer browser if open
+
   BrowserManager.closeBrowser().catch(console.error);
 
   server.close(() => {
     console.log("Process terminated.");
     process.exit(0);
   });
-  
+
   // Force exit after 10s if server.close hangs
   setTimeout(() => {
     console.error("Could not close connections in time, forcefully shutting down");
