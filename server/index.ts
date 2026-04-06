@@ -6,6 +6,7 @@ import morgan from "morgan";
 import compression from "compression";
 import dotenv from "dotenv";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 
 // Load environment variables
@@ -48,7 +49,6 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -81,7 +81,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 // 8. Rate Limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 100,
   message: { error: "Too many requests, please try again later." },
   standardHeaders: true,
@@ -103,9 +103,16 @@ app.get("/health", (req: Request, res: Response) => {
 import { brochureRouter } from "./routes/brochure.routes.js";
 app.use("/api/brochure", brochureRouter);
 
-// 11. Serve React Frontend (Production only)
-if (process.env.NODE_ENV === "production") {
-  const distPath = path.resolve(__dirname, "../../dist"); // two levels up from dist-server/server/
+// 11. Debug Logs (remove after confirming fix)
+console.log("NODE_ENV:", process.env.NODE_ENV);
+console.log("__dirname:", __dirname);
+console.log("distPath:", path.resolve(__dirname, "../../dist"));
+
+// 12. Serve React Frontend
+const distPath = path.resolve(__dirname, "../../dist");
+
+if (fs.existsSync(distPath)) {
+  console.log("✅ dist folder found, serving static files from:", distPath);
 
   // Serve static assets (JS, CSS, images, etc.)
   app.use(express.static(distPath));
@@ -115,16 +122,18 @@ if (process.env.NODE_ENV === "production") {
     if (req.path.startsWith("/api")) return next();
     res.sendFile(path.join(distPath, "index.html"));
   });
+} else {
+  console.warn("⚠️ dist folder NOT found at:", distPath);
 }
 
-// 12. Global 404 Handler
+// 13. Global 404 Handler
 app.use((req: Request, res: Response) => {
   if (!res.headersSent) {
     res.status(404).json({ error: "Route not found" });
   }
 });
 
-// 13. Global Error Handling Middleware
+// 14. Global Error Handling Middleware
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   if (res.headersSent) {
     return next(err);
@@ -141,13 +150,13 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-// 14. Start Server
+// 15. Start Server
 const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Production-ready server running on port ${PORT}`);
   console.log(`🔗 Allowed Origins: ${allowedOrigins.join(", ")}`);
 });
 
-// 15. Graceful Shutdown & Error Handling
+// 16. Graceful Shutdown & Error Handling
 process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);
 });
@@ -169,7 +178,6 @@ process.on("SIGTERM", () => {
     process.exit(0);
   });
 
-  // Force exit after 10s if server.close hangs
   setTimeout(() => {
     console.error("Could not close connections in time, forcefully shutting down");
     process.exit(1);
