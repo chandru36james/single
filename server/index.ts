@@ -1,3 +1,5 @@
+// server/index.ts
+
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -9,7 +11,6 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 
-// Load environment variables
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -18,29 +19,34 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-/**
- * ✅ Optimization: catchAsync utility to handle async route errors
- * Prevents unhandled promise rejections from crashing the process.
- */
 export const catchAsync = (fn: Function) => (req: Request, res: Response, next: NextFunction) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
 
-// 1. Trust Proxy (Crucial for Render/Vercel/Cloudflare)
+// 1. Trust Proxy
 app.set("trust proxy", 1);
 
-// 2. Security Headers
+// 2. ✅ Serve static files FIRST — before CORS, before everything
+const distPath = path.resolve(__dirname, "../../dist");
+if (fs.existsSync(distPath)) {
+  console.log("✅ dist folder found, serving static files from:", distPath);
+  app.use(express.static(distPath));
+} else {
+  console.warn("⚠️ dist folder NOT found at:", distPath);
+}
+
+// 3. Security Headers
 app.use(helmet({
-  contentSecurityPolicy: false, // Required for React SPA
+  contentSecurityPolicy: false,
 }));
 
-// 3. Performance: Response Compression
+// 4. Compression
 app.use(compression());
 
-// 4. Request Logging
+// 5. Logging
 app.use(morgan("combined"));
 
-// 5. CORS Configuration
+// 6. CORS — only needed for API routes
 const allowedOrigins = [
   process.env.CLIENT_URL,
   "http://localhost:5173",
@@ -62,11 +68,11 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
-// 6. Body Parsing
+// 7. Body Parsing
 app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 
-// 7. Timeout Protection (30 seconds)
+// 8. Timeout Protection
 app.use((req: Request, res: Response, next: NextFunction) => {
   const timeout = 30000;
   const timer = setTimeout(() => {
@@ -74,13 +80,12 @@ app.use((req: Request, res: Response, next: NextFunction) => {
       res.status(408).json({ error: "Request Timeout" });
     }
   }, timeout);
-
   res.on("finish", () => clearTimeout(timer));
   res.on("close", () => clearTimeout(timer));
   next();
 });
 
-// 8. Rate Limiting
+// 9. Rate Limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -90,7 +95,7 @@ const limiter = rateLimit({
 });
 app.use("/api/", limiter);
 
-// 9. Health Check Route
+// 10. Health Check
 app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({
     status: "ok",
@@ -100,31 +105,16 @@ app.get("/health", (req: Request, res: Response) => {
   });
 });
 
-// 10. API Routes
+// 11. API Routes
 import { brochureRouter } from "./routes/brochure.routes.js";
 app.use("/api/brochure", brochureRouter);
 
-// 11. Debug Logs (remove after confirming fix)
-console.log("NODE_ENV:", process.env.NODE_ENV);
-console.log("__dirname:", __dirname);
-console.log("distPath:", path.resolve(__dirname, "../../dist"));
-
-// 12. Serve React Frontend
-const distPath = path.resolve(__dirname, "../../dist");
-
+// 12. SPA Fallback — serve index.html for all non-API frontend routes
 if (fs.existsSync(distPath)) {
-  console.log("✅ dist folder found, serving static files from:", distPath);
-
-  // Serve static assets (JS, CSS, images, etc.)
-  app.use(express.static(distPath));
-
-  // SPA fallback — serve index.html for all non-API routes
   app.get("*", (req: Request, res: Response, next: NextFunction) => {
     if (req.path.startsWith("/api")) return next();
     res.sendFile(path.join(distPath, "index.html"));
   });
-} else {
-  console.warn("⚠️ dist folder NOT found at:", distPath);
 }
 
 // 13. Global 404 Handler
@@ -134,17 +124,12 @@ app.use((req: Request, res: Response) => {
   }
 });
 
-// 14. Global Error Handling Middleware
+// 14. Global Error Handling
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  if (res.headersSent) {
-    return next(err);
-  }
-
+  if (res.headersSent) return next(err);
   console.error("Unhandled Error:", err);
-
   const statusCode = err.statusCode || 500;
   const message = err.message || "Internal Server Error";
-
   res.status(statusCode).json({
     error: message,
     ...(process.env.NODE_ENV !== "production" && { stack: err.stack }),
@@ -153,11 +138,11 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 
 // 15. Start Server
 const server = app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Production-ready server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🔗 Allowed Origins: ${allowedOrigins.join(", ")}`);
 });
 
-// 16. Graceful Shutdown & Error Handling
+// 16. Graceful Shutdown
 process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);
 });
@@ -171,14 +156,11 @@ import { BrowserManager } from "./services/brochure.service.js";
 
 process.on("SIGTERM", () => {
   console.log("SIGTERM received. Shutting down gracefully...");
-
   BrowserManager.closeBrowser().catch(console.error);
-
   server.close(() => {
     console.log("Process terminated.");
     process.exit(0);
   });
-
   setTimeout(() => {
     console.error("Could not close connections in time, forcefully shutting down");
     process.exit(1);
