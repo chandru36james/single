@@ -1,0 +1,99 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Fields:
+    //   - role: string (admin, staff, viewer)
+    //
+    // Collection: pages
+    // Fields:
+    //   - title: string
+    //   - slug: string
+    //   - content: string
+    //   - metaTitle: string
+    //   - metaDescription: string
+    //   - createdAt: timestamp
+    //   - updatedAt: timestamp
+    //
+    // Collection: leads
+    // Fields:
+    //   - name: string
+    //   - phone: string
+    //   - email: string
+    //   - type: string (HOT, WARM, COLD)
+    //   - status: string
+    //   - createdAt: timestamp
+    //
+    // Collection: settings
+    // Fields:
+    //   - whatsappNumber: string
+    //   - defaultMessage: string
+    //   - contactEmail: string
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function hasRole(roles) {
+      return isAuthenticated() &&
+        (
+          (request.auth.token.email == "vgotyou3@gmail.com" && request.auth.token.email_verified == true) ||
+          (request.auth.token.email == "chandru@gmail.com") ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in roles)
+        );
+    }
+
+    function isAdmin() {
+      return hasRole(['admin']);
+    }
+
+    function isStaff() {
+      return hasRole(['admin', 'staff']);
+    }
+
+    // Rules
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /pages/{pageId} {
+      allow read: if true; // Publicly readable
+      allow write: if isAdmin();
+    }
+
+    match /posts/{postId} {
+      allow read: if true; // Publicly readable
+      allow write: if isStaff();
+    }
+
+    match /leads/{leadId} {
+      allow read: if isStaff();
+      allow create: if true; // Publicly creatable (contact form)
+      allow update, delete: if isStaff();
+    }
+
+    match /brochures/{brochureId} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+      allow update, delete: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if true; // Publicly readable for site config
+      allow write: if isAdmin();
+    }
+
+    match /site_content/{contentId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

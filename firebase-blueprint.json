@@ -1,0 +1,104 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and role information",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "staff", "viewer"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "role"]
+    },
+    "Page": {
+      "title": "Page",
+      "description": "Dynamic page content",
+      "type": "object",
+      "properties": {
+        "slug": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "published"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["slug", "title", "content", "status"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "Journal entry or blog post",
+      "type": "object",
+      "properties": {
+        "slug": { "type": "string" },
+        "title": { "type": "string" },
+        "excerpt": { "type": "string" },
+        "content": { "type": "string" },
+        "coverImage": { "type": "string", "format": "uri" },
+        "status": { "type": "string", "enum": ["draft", "published"] },
+        "seo": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string" },
+            "description": { "type": "string" },
+            "keywords": { "type": "string" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["slug", "title", "content", "status"]
+    },
+    "Lead": {
+      "title": "Lead",
+      "description": "Contact form submission",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "type": { "type": "string" },
+        "status": { "type": "string", "enum": ["new", "contacted", "qualified", "lost"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "phone", "status"]
+    },
+    "Brochure": {
+      "title": "Brochure",
+      "description": "Generated proposal or brochure",
+      "type": "object",
+      "properties": {
+        "clientName": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "eventType": { "type": "string" },
+        "eventDate": { "type": "string" },
+        "location": { "type": "string" },
+        "packageId": { "type": "string" },
+        "selectedAddons": { "type": "array", "items": { "type": "string" } },
+        "totalPrice": { "type": "number" },
+        "authorId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["clientName", "phone", "totalPrice", "authorId"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Global site settings",
+      "type": "object",
+      "properties": {
+        "siteName": { "type": "string" },
+        "contactEmail": { "type": "string", "format": "email" },
+        "whatsappNumber": { "type": "string" },
+        "address": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User profiles" },
+    "/pages/{pageId}": { "schema": "Page", "description": "Dynamic pages" },
+    "/posts/{postId}": { "schema": "Post", "description": "Journal entries" },
+    "/leads/{leadId}": { "schema": "Lead", "description": "Contact leads" },
+    "/brochures/{brochureId}": { "schema": "Brochure", "description": "Generated brochures" },
+    "/settings/{settingId}": { "schema": "Settings", "description": "Global settings" }
+  }
+}
